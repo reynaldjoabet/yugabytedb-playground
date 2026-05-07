@@ -94,3 +94,19 @@ This will result in a `PLAY_SESSION` cookie on the client with a signed payload 
 
 PLAY_SESSION + PlayCacheSessionStore
 `PLAY_SESSION=sessionId=<someRandomSessionKey>`
+
+```sh
+docker pull software.yugabyte.com/yugabytedb/yugabyte:2025.2.2.2-b11
+docker run -d --name yugabyte -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042  yugabytedb/yugabyte:2025.2.2.2-b11 bin/yugabyted start  --background=false
+```
+
+```java
+//Field 'log' already exists.
+[warn] @Slf4j
+@Slf4j
+public class OidcJwtValidation {
+
+	private Logger log = LoggerFactory.getLogger(OidcJwtValidation.class);
+}
+// pick one
+```

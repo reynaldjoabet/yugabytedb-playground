@@ -44,6 +44,8 @@ lazy val root = (project in file("."))
       "org.bouncycastle" % "bc-fips" % "2.1.2",
       "org.bouncycastle" % "bcpkix-fips" % "2.1.11",
       "org.bouncycastle" % "bctls-fips" % "2.1.23",
+      "org.bouncycastle" % "bcpkix-jdk18on" % "1.84",
+      "org.bouncycastle" % "bcprov-jdk18on" % "1.84",
       "org.mindrot" % "jbcrypt" % "0.4",
       "org.springframework.security" % "spring-security-core" % "6.5.0",
       "com.amazonaws" % "aws-java-sdk-ec2" % "1.12.785",
@@ -115,6 +117,27 @@ lazy val root = (project in file("."))
       "io.jsonwebtoken" % "jjwt-jackson" % "0.12.6",
       "io.swagger" % "swagger-annotations" % "1.6.16", // needed for annotations in prod code
       "de.dentrassi.crypto" % "pem-keystore" % "3.0.0",
-      "org.playframework" %% "play-ebean" % "8.5.0"
+      "org.playframework" %% "play-ebean" % "8.5.0",
+      "jakarta.validation" % "jakarta.validation-api" % "3.1.1",
+      "qa.hedgehog" %% "hedgehog-sbt" % "0.13.0" % Test,
+      // https://hedgehog.qa/
+      "qa.hedgehog" %% "hedgehog-core" % "0.13.0" % Test
     )
   )
+
+val jacksonVersion = "2.31.3"
+
+val jacksonLibs = Seq(
+  "com.fasterxml.jackson.core" % "jackson-core",
+  "com.fasterxml.jackson.core" % "jackson-annotations",
+  "com.fasterxml.jackson.core" % "jackson-databind",
+  "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8",
+  "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310",
+  "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor",
+  "com.fasterxml.jackson.dataformat" % "jackson-dataformat-xml",
+  "com.fasterxml.jackson.dataformat" % "jackson-dataformat-yaml",
+  "com.fasterxml.jackson.module" % "jackson-module-parameter-names",
+  "com.fasterxml.jackson.module" %% "jackson-module-scala"
+)
+
+val jacksonOverrides = jacksonLibs.map(_ % jacksonVersion)
