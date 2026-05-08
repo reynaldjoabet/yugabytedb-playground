@@ -29,6 +29,7 @@ INSERT INTO banking.transaction_type(transaction_type_code, description, enabled
   ('FEE_CHARGE',             'Fee charged to customer account', true, false),
   ('INTEREST_ACCRUAL',       'Interest accrual or capitalization', true, false),
   ('REVERSAL',               'Reversal of a previously posted transaction', true, false),
+  ('HOLD_CAPTURE',           'Capture of a previously placed funds hold', true, false),
   ('ADJUSTMENT',             'Controlled back-office adjustment', true, true)
 ON CONFLICT (transaction_type_code) DO UPDATE SET
   description = EXCLUDED.description,

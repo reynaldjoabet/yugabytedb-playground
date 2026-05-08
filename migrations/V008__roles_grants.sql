@@ -18,12 +18,21 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'corebank_ops') THEN
     CREATE ROLE corebank_ops LOGIN;
   END IF;
+
+  -- Cross-tenant integrity / reconciliation role. BYPASSRLS so nightly recon jobs
+  -- can read every tenant; never granted any write privileges.
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'corebank_reconciler') THEN
+    CREATE ROLE corebank_reconciler LOGIN BYPASSRLS;
+  ELSE
+    ALTER ROLE corebank_reconciler BYPASSRLS;
+  END IF;
 END;
 $$;
 
 -- Enforce the intended transaction mode for normal runtime connections.
 ALTER ROLE corebank_app SET default_transaction_isolation = 'serializable';
 ALTER ROLE corebank_ops SET default_transaction_isolation = 'serializable';
+ALTER ROLE corebank_reconciler SET default_transaction_isolation = 'repeatable read';
 
 REVOKE ALL ON SCHEMA banking FROM PUBLIC;
 REVOKE ALL ON SCHEMA audit FROM PUBLIC;
@@ -33,13 +42,13 @@ REVOKE ALL ON ALL TABLES IN SCHEMA audit FROM PUBLIC;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA banking FROM PUBLIC;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA audit FROM PUBLIC;
 
-GRANT USAGE ON SCHEMA banking TO corebank_app, corebank_readonly, corebank_outbox, corebank_ops;
-GRANT USAGE ON SCHEMA audit TO corebank_ops;
+GRANT USAGE ON SCHEMA banking TO corebank_app, corebank_readonly, corebank_outbox, corebank_ops, corebank_reconciler;
+GRANT USAGE ON SCHEMA audit TO corebank_ops, corebank_reconciler;
 GRANT USAGE ON SCHEMA ops TO corebank_ops;
 
 -- Read access.
-GRANT SELECT ON ALL TABLES IN SCHEMA banking TO corebank_readonly, corebank_ops;
-GRANT SELECT ON ALL TABLES IN SCHEMA audit TO corebank_ops;
+GRANT SELECT ON ALL TABLES IN SCHEMA banking TO corebank_readonly, corebank_ops, corebank_reconciler;
+GRANT SELECT ON ALL TABLES IN SCHEMA audit TO corebank_ops, corebank_reconciler;
 
 -- Application runtime can onboard parties/accounts/products and read operational state.
 GRANT SELECT ON banking.tenant TO corebank_app;
@@ -47,6 +56,7 @@ GRANT SELECT ON banking.currency TO corebank_app;
 GRANT SELECT ON banking.account_category TO corebank_app;
 GRANT SELECT ON banking.transaction_type TO corebank_app;
 GRANT SELECT, INSERT, UPDATE ON banking.party TO corebank_app;
+GRANT SELECT, INSERT, UPDATE ON banking.gl_account TO corebank_app;
 GRANT SELECT, INSERT, UPDATE ON banking.account_product TO corebank_app;
 GRANT SELECT, INSERT, UPDATE ON banking.account TO corebank_app;
 GRANT SELECT ON banking.account_balance TO corebank_app;
@@ -64,11 +74,19 @@ REVOKE INSERT, UPDATE, DELETE ON banking.ledger_reversal FROM corebank_app;
 REVOKE INSERT, UPDATE, DELETE ON banking.posting_idempotency FROM corebank_app;
 REVOKE INSERT, UPDATE, DELETE ON banking.outbox_event FROM corebank_app;
 
+-- Session context: every connecting role must be able to bind actor + request_id + tenant_id.
+GRANT EXECUTE ON FUNCTION banking.set_session_context(text, text, uuid)
+  TO corebank_app, corebank_outbox, corebank_ops, corebank_reconciler, corebank_readonly;
+GRANT EXECUTE ON FUNCTION banking.current_actor()       TO corebank_app, corebank_outbox, corebank_ops, corebank_reconciler, corebank_readonly;
+GRANT EXECUTE ON FUNCTION banking.current_request_id()  TO corebank_app, corebank_outbox, corebank_ops, corebank_reconciler, corebank_readonly;
+GRANT EXECUTE ON FUNCTION banking.current_tenant_id()   TO corebank_app, corebank_outbox, corebank_ops, corebank_reconciler, corebank_readonly;
+
 -- Money movement APIs.
 GRANT EXECUTE ON FUNCTION banking.post_ledger_transaction(uuid, text, text, text, jsonb, text, text, timestamptz, jsonb, text) TO corebank_app;
 GRANT EXECUTE ON FUNCTION banking.reverse_ledger_transaction(uuid, uuid, text, text, text, jsonb, text) TO corebank_app;
 GRANT EXECUTE ON FUNCTION banking.place_funds_hold(uuid, uuid, text, text, numeric, banking.currency_code, timestamptz, text, text, jsonb, text) TO corebank_app;
 GRANT EXECUTE ON FUNCTION banking.release_funds_hold(uuid, uuid, text, text) TO corebank_app;
+GRANT EXECUTE ON FUNCTION banking.capture_funds_hold(uuid, uuid, numeric, uuid, text, text, text, jsonb, text) TO corebank_app;
 
 -- Outbox dispatcher role.
 GRANT SELECT ON banking.outbox_event TO corebank_outbox;
@@ -82,11 +100,12 @@ GRANT EXECUTE ON FUNCTION banking.assert_reconciliation_clean(uuid) TO corebank_
 GRANT EXECUTE ON FUNCTION banking.release_funds_hold(uuid, uuid, text, text) TO corebank_ops;
 
 -- Future objects created by the migration owner.
-ALTER DEFAULT PRIVILEGES IN SCHEMA banking GRANT SELECT ON TABLES TO corebank_readonly, corebank_ops;
-ALTER DEFAULT PRIVILEGES IN SCHEMA audit GRANT SELECT ON TABLES TO corebank_ops;
+ALTER DEFAULT PRIVILEGES IN SCHEMA banking GRANT SELECT ON TABLES TO corebank_readonly, corebank_ops, corebank_reconciler;
+ALTER DEFAULT PRIVILEGES IN SCHEMA audit   GRANT SELECT ON TABLES TO corebank_ops, corebank_reconciler;
 
 -- Set passwords outside migrations, for example:
 -- ALTER ROLE corebank_app PASSWORD '<from-secret-manager>';
 -- ALTER ROLE corebank_outbox PASSWORD '<from-secret-manager>';
 -- ALTER ROLE corebank_readonly PASSWORD '<from-secret-manager>';
 -- ALTER ROLE corebank_ops PASSWORD '<from-secret-manager>';
+-- ALTER ROLE corebank_reconciler PASSWORD '<from-secret-manager>';

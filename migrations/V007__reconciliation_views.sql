@@ -134,6 +134,78 @@ BEGIN
 END;
 $$;
 
+-- Operational monitoring views.
+-- These are designed for dashboards/alerting; they sit alongside the reconciliation views above.
+
+CREATE OR REPLACE VIEW banking.v_outbox_lag AS
+SELECT
+  o.tenant_id,
+  o.status,
+  count(*) AS event_count,
+  min(o.created_at) AS oldest_created_at,
+  max(clock_timestamp() - o.created_at) AS oldest_age,
+  max(o.attempts) AS max_attempts_seen,
+  sum(o.attempts) AS total_attempts
+FROM banking.outbox_event o
+WHERE o.status IN ('PENDING', 'FAILED', 'DISPATCHING', 'DEAD')
+GROUP BY o.tenant_id, o.status;
+
+CREATE OR REPLACE VIEW banking.v_outbox_dead_letters AS
+SELECT
+  o.tenant_id,
+  o.event_id,
+  o.aggregate_type,
+  o.aggregate_id,
+  o.event_type,
+  o.attempts,
+  o.max_attempts,
+  o.last_error,
+  o.created_at,
+  o.available_at
+FROM banking.outbox_event o
+WHERE o.status = 'DEAD';
+
+CREATE OR REPLACE VIEW banking.v_funds_hold_due_for_expiry AS
+SELECT
+  h.tenant_id,
+  h.hold_id,
+  h.account_id,
+  h.amount_minor,
+  h.currency_code,
+  h.expires_at,
+  clock_timestamp() - h.expires_at AS overdue_by
+FROM banking.funds_hold h
+WHERE h.status = 'ACTIVE'
+  AND h.expires_at <= clock_timestamp();
+
+CREATE OR REPLACE VIEW banking.v_idempotency_stragglers AS
+SELECT
+  i.tenant_id,
+  i.source_system,
+  i.idempotency_key,
+  i.created_at,
+  clock_timestamp() - i.created_at AS age
+FROM banking.posting_idempotency i
+WHERE i.transaction_id IS NULL
+  AND i.created_at < clock_timestamp() - INTERVAL '5 minutes';
+
+CREATE OR REPLACE VIEW banking.v_outbox_throughput_15m AS
+SELECT
+  o.tenant_id,
+  o.event_type,
+  count(*) AS published_count,
+  min(o.published_at) AS first_published_at,
+  max(o.published_at) AS last_published_at
+FROM banking.outbox_event o
+WHERE o.status = 'PUBLISHED'
+  AND o.published_at >= clock_timestamp() - INTERVAL '15 minutes'
+GROUP BY o.tenant_id, o.event_type;
+
 COMMENT ON VIEW banking.v_transaction_balance_violations IS 'Any rows here are severe: the immutable ledger has an unbalanced transaction.';
 COMMENT ON VIEW banking.v_account_balance_drift IS 'Any rows here mean cached account balances do not match immutable ledger entries.';
 COMMENT ON VIEW banking.v_hold_balance_drift IS 'Any rows here mean cached held balances do not match active holds.';
+COMMENT ON VIEW banking.v_outbox_lag IS 'Per-tenant pending/failed/dispatching/dead outbox event counts and oldest age. Page on growing PENDING age, any DEAD rows, or stuck DISPATCHING events.';
+COMMENT ON VIEW banking.v_outbox_dead_letters IS 'Outbox events that exceeded max_attempts. Investigate and either replay (reset to PENDING) or quarantine.';
+COMMENT ON VIEW banking.v_funds_hold_due_for_expiry IS 'ACTIVE funds holds whose expires_at has passed and have not yet been processed by banking.expire_due_funds_holds.';
+COMMENT ON VIEW banking.v_idempotency_stragglers IS 'Idempotency rows older than 5 minutes with no transaction_id. Likely a posting fn aborted before completion; safe to age out, but persistent rows indicate a bug.';
+COMMENT ON VIEW banking.v_outbox_throughput_15m IS 'Per-tenant published event throughput in the last 15 minutes. Use as a sanity check next to v_outbox_lag.';

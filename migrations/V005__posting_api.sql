@@ -24,7 +24,8 @@ DECLARE
   v_transaction_type text := upper(trim(coalesce(p_transaction_type, '')));
   v_external_ref text := nullif(trim(coalesce(p_external_ref, '')), '');
   v_effective_at timestamptz := coalesce(p_effective_at, clock_timestamp());
-  v_created_by text := coalesce(nullif(trim(coalesce(p_created_by, '')), ''), current_user);
+  v_created_by text := coalesce(nullif(trim(coalesce(p_created_by, '')), ''), banking.current_actor());
+  v_request_id text := banking.current_request_id();
   v_request_hash bytea;
   v_existing_hash bytea;
   v_existing_transaction_id uuid;
@@ -358,6 +359,8 @@ BEGIN
       'external_ref', v_external_ref,
       'posted_at', v_now,
       'effective_at', v_effective_at,
+      'created_by', v_created_by,
+      'request_id', v_request_id,
       'entries', p_entries
     )
   );

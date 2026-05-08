@@ -15,14 +15,20 @@ CREATE TABLE banking.funds_hold (
   expires_at       timestamptz NOT NULL,
   released_at      timestamptz,
   release_reason   text,
+  captured_transaction_id uuid,
   metadata         jsonb NOT NULL DEFAULT '{}'::jsonb,
-  created_by       text NOT NULL DEFAULT current_user,
+  created_by       text NOT NULL DEFAULT banking.current_actor(),
   created_at       timestamptz NOT NULL DEFAULT clock_timestamp(),
   updated_at       timestamptz NOT NULL DEFAULT clock_timestamp(),
   PRIMARY KEY ((tenant_id, hold_id) HASH),
   CONSTRAINT fk_funds_hold_account FOREIGN KEY (tenant_id, account_id) REFERENCES banking.account(tenant_id, account_id),
   CONSTRAINT fk_funds_hold_currency FOREIGN KEY (currency_code) REFERENCES banking.currency(currency_code),
-  CONSTRAINT ux_funds_hold_idempotency UNIQUE (tenant_id, source_system, idempotency_key)
+  CONSTRAINT fk_funds_hold_captured_tx FOREIGN KEY (tenant_id, captured_transaction_id) REFERENCES banking.ledger_transaction(tenant_id, transaction_id),
+  CONSTRAINT ux_funds_hold_idempotency UNIQUE (tenant_id, source_system, idempotency_key),
+  CONSTRAINT ck_funds_hold_captured_state CHECK (
+    (status = 'CAPTURED' AND captured_transaction_id IS NOT NULL) OR
+    (status <> 'CAPTURED' AND captured_transaction_id IS NULL)
+  )
 ) WITH (COLOCATION = false) SPLIT INTO 32 TABLETS;
 
 CREATE INDEX idx_funds_hold_active_account ON banking.funds_hold(account_id HASH, expires_at ASC) SPLIT INTO 32 TABLETS WHERE status = 'ACTIVE';
@@ -56,7 +62,8 @@ DECLARE
   v_now timestamptz := clock_timestamp();
   v_source_system text := trim(coalesce(p_source_system, ''));
   v_idempotency_key text := trim(coalesce(p_idempotency_key, ''));
-  v_created_by text := coalesce(nullif(trim(coalesce(p_created_by, '')), ''), current_user);
+  v_created_by text := coalesce(nullif(trim(coalesce(p_created_by, '')), ''), banking.current_actor());
+  v_request_id text := banking.current_request_id();
   v_existing_hold_id uuid;
   v_hold_id uuid;
   v_currency banking.currency_code;
@@ -181,7 +188,9 @@ BEGIN
       'account_id', p_account_id::text,
       'amount_minor', p_amount_minor::text,
       'currency_code', p_currency_code::text,
-      'expires_at', p_expires_at
+      'expires_at', p_expires_at,
+      'created_by', v_created_by,
+      'request_id', v_request_id
     )
   );
 
@@ -272,11 +281,167 @@ BEGIN
       'account_id', v_account_id::text,
       'amount_minor', v_amount::text,
       'status', v_new_status,
-      'released_at', v_now
+      'released_at', v_now,
+      'request_id', banking.current_request_id()
     )
   );
 
   RETURN p_hold_id;
+END;
+$$;
+
+-- Atomic capture: releases the hold's reservation against held_balance and
+-- posts a DEBIT/CREDIT ledger transaction in the same SERIALIZABLE transaction.
+-- Idempotent: re-invoking on a CAPTURED hold returns the original transaction id.
+CREATE OR REPLACE FUNCTION banking.capture_funds_hold(
+  p_tenant_id uuid,
+  p_hold_id uuid,
+  p_capture_amount numeric,
+  p_counterparty_account_id uuid,
+  p_source_system text,
+  p_idempotency_key text,
+  p_description text DEFAULT NULL,
+  p_metadata jsonb DEFAULT '{}'::jsonb,
+  p_created_by text DEFAULT NULL
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, banking, public, pg_temp
+AS $$
+DECLARE
+  v_now timestamptz := clock_timestamp();
+  v_account_id uuid;
+  v_held_amount numeric(38,0);
+  v_currency banking.currency_code;
+  v_status text;
+  v_existing_tx uuid;
+  v_capture_amount numeric(38,0);
+  v_transaction_id uuid;
+  v_entries jsonb;
+  v_request_id text := banking.current_request_id();
+BEGIN
+  IF current_setting('transaction_isolation') <> 'serializable' THEN
+    RAISE EXCEPTION 'capturing funds hold requires SERIALIZABLE transaction isolation; current isolation is %', current_setting('transaction_isolation')
+      USING ERRCODE = '25001';
+  END IF;
+
+  IF p_tenant_id IS NULL OR p_hold_id IS NULL OR p_counterparty_account_id IS NULL THEN
+    RAISE EXCEPTION 'tenant, hold, and counterparty account are required' USING ERRCODE = '22023';
+  END IF;
+
+  IF p_capture_amount IS NULL OR p_capture_amount <= 0 OR p_capture_amount <> trunc(p_capture_amount) THEN
+    RAISE EXCEPTION 'capture amount must be a positive integer minor-unit amount' USING ERRCODE = '23514';
+  END IF;
+
+  v_capture_amount := p_capture_amount::numeric(38,0);
+
+  SELECT account_id, amount_minor, currency_code, status, captured_transaction_id
+    INTO v_account_id, v_held_amount, v_currency, v_status, v_existing_tx
+  FROM banking.funds_hold
+  WHERE tenant_id = p_tenant_id
+    AND hold_id = p_hold_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'funds hold % not found', p_hold_id USING ERRCODE = '02000';
+  END IF;
+
+  IF v_status = 'CAPTURED' THEN
+    RETURN v_existing_tx;
+  END IF;
+
+  IF v_status <> 'ACTIVE' THEN
+    RAISE EXCEPTION 'funds hold % is %, only ACTIVE holds can be captured', p_hold_id, v_status USING ERRCODE = '23514';
+  END IF;
+
+  IF v_capture_amount > v_held_amount THEN
+    RAISE EXCEPTION 'capture amount % exceeds held amount % for hold %', v_capture_amount, v_held_amount, p_hold_id USING ERRCODE = '23514';
+  END IF;
+
+  PERFORM 1
+  FROM banking.account_balance
+  WHERE tenant_id = p_tenant_id
+    AND account_id = v_account_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'balance row missing for account %', v_account_id USING ERRCODE = '23503';
+  END IF;
+
+  -- Release the entire hold against held_balance first so the post sees real available_balance.
+  -- If capture < held, the difference effectively returns to available; the hold itself moves to CAPTURED.
+  UPDATE banking.account_balance
+     SET held_balance_minor = held_balance_minor - v_held_amount,
+         version = version + 1,
+         updated_at = v_now
+   WHERE tenant_id = p_tenant_id
+     AND account_id = v_account_id
+     AND held_balance_minor >= v_held_amount;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'held balance underflow for account % hold %', v_account_id, p_hold_id USING ERRCODE = '23514';
+  END IF;
+
+  v_entries := jsonb_build_array(
+    jsonb_build_object(
+      'account_id', v_account_id::text,
+      'direction', 'DEBIT',
+      'amount_minor', v_capture_amount::text,
+      'currency_code', v_currency::text,
+      'narrative', 'Capture of hold ' || p_hold_id::text
+    ),
+    jsonb_build_object(
+      'account_id', p_counterparty_account_id::text,
+      'direction', 'CREDIT',
+      'amount_minor', v_capture_amount::text,
+      'currency_code', v_currency::text,
+      'narrative', 'Capture of hold ' || p_hold_id::text
+    )
+  );
+
+  v_transaction_id := banking.post_ledger_transaction(
+    p_tenant_id        => p_tenant_id,
+    p_source_system    => p_source_system,
+    p_idempotency_key  => p_idempotency_key,
+    p_transaction_type => 'HOLD_CAPTURE',
+    p_entries          => v_entries,
+    p_description      => coalesce(p_description, 'Hold capture'),
+    p_external_ref     => p_hold_id::text,
+    p_effective_at     => v_now,
+    p_metadata         => coalesce(p_metadata, '{}'::jsonb) || jsonb_build_object('hold_id', p_hold_id::text),
+    p_created_by       => p_created_by
+  );
+
+  UPDATE banking.funds_hold
+     SET status = 'CAPTURED',
+         captured_transaction_id = v_transaction_id,
+         released_at = v_now,
+         release_reason = 'captured'
+   WHERE tenant_id = p_tenant_id
+     AND hold_id = p_hold_id;
+
+  INSERT INTO banking.outbox_event(tenant_id, aggregate_type, aggregate_id, event_type, payload)
+  VALUES (
+    p_tenant_id,
+    'FundsHold',
+    p_hold_id,
+    'FundsHoldCaptured',
+    jsonb_build_object(
+      'tenant_id', p_tenant_id::text,
+      'hold_id', p_hold_id::text,
+      'account_id', v_account_id::text,
+      'counterparty_account_id', p_counterparty_account_id::text,
+      'amount_minor', v_capture_amount::text,
+      'held_amount_minor', v_held_amount::text,
+      'currency_code', v_currency::text,
+      'transaction_id', v_transaction_id::text,
+      'captured_at', v_now,
+      'request_id', v_request_id
+    )
+  );
+
+  RETURN v_transaction_id;
 END;
 $$;
 
@@ -316,4 +481,5 @@ BEGIN
 END;
 $$;
 
-COMMENT ON TABLE banking.funds_hold IS 'Active holds reduce available balance without changing ledger balance. Capture should be represented by a normal ledger transaction and then release/cancel the hold.';
+COMMENT ON TABLE banking.funds_hold IS 'Active holds reduce available balance without changing ledger balance. Use banking.capture_funds_hold to atomically release the reservation and post the corresponding ledger transaction.';
+COMMENT ON FUNCTION banking.capture_funds_hold IS 'Atomically capture an ACTIVE hold: releases held_balance and posts a HOLD_CAPTURE ledger transaction in one SERIALIZABLE transaction. Idempotent on the hold itself (re-invocation on a CAPTURED hold returns the original transaction id).';

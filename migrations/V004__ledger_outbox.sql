@@ -116,6 +116,55 @@ BEFORE UPDATE OR DELETE ON banking.ledger_reversal
 FOR EACH ROW
 EXECUTE FUNCTION banking.reject_immutable_change();
 
+-- Defence-in-depth double-entry check.
+-- The posting fn enforces DR=CR per currency before insert; this DEFERRED constraint
+-- trigger re-validates at commit time, catching any future code path or break-glass
+-- write that bypasses banking.post_ledger_transaction.
+CREATE OR REPLACE FUNCTION banking.assert_ledger_double_entry()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, banking
+AS $$
+DECLARE
+  v_unbalanced jsonb;
+BEGIN
+  WITH totals AS (
+    SELECT currency_code,
+           sum(CASE WHEN direction = 'DEBIT' THEN amount_minor ELSE 0 END) AS debits,
+           sum(CASE WHEN direction = 'CREDIT' THEN amount_minor ELSE 0 END) AS credits,
+           count(*) AS entry_count
+    FROM banking.ledger_entry
+    WHERE tenant_id = NEW.tenant_id
+      AND transaction_id = NEW.transaction_id
+    GROUP BY currency_code
+    HAVING count(*) < 2
+        OR sum(CASE WHEN direction = 'DEBIT' THEN amount_minor ELSE 0 END)
+        <> sum(CASE WHEN direction = 'CREDIT' THEN amount_minor ELSE 0 END)
+  )
+  SELECT jsonb_agg(jsonb_build_object(
+           'currency_code', currency_code,
+           'debits', debits,
+           'credits', credits,
+           'entry_count', entry_count
+         ))
+    INTO v_unbalanced
+  FROM totals;
+
+  IF v_unbalanced IS NOT NULL THEN
+    RAISE EXCEPTION 'double-entry violation on transaction %: %', NEW.transaction_id, v_unbalanced
+      USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+CREATE CONSTRAINT TRIGGER trg_ledger_entry_double_entry
+AFTER INSERT ON banking.ledger_entry
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW
+EXECUTE FUNCTION banking.assert_ledger_double_entry();
+
 CREATE OR REPLACE FUNCTION banking.claim_outbox_events(
   p_consumer text,
   p_limit integer DEFAULT 100,
