@@ -2,17 +2,28 @@ name := """yugabytedb-playground"""
 
 version := "1.0-SNAPSHOT"
 
-ThisBuild / scalaVersion := "3.3.7"
+ThisBuild / scalaVersion := "3.8.4"
 
-ThisBuild / javacOptions ++= Seq(
+ThisBuild / scalacOptions := Seq(
   "-encoding",
   "UTF-8",
-  "-Xlint:-options",
-  "-Xlint:unchecked",
-  "-Xlint:deprecation",
-  "-proc:only" // or "-proc:full" if you want full processing
-
+  "-no-indent",
+  "-deprecation",
+  "-feature",
+  "-unchecked",
+  "-source:3.3",
+  "-java-output-version:17",
+  "-Werror",
+  "-Wvalue-discard",
+  "-Wnonunit-statement",
+  "-Xlint:all",
+  "-Ysafe-init",
+  "-Xcheck-macros",
+  "-Xmax-inlines:64"
 )
+
+Global / onChangedBuildSource := ReloadOnSourceChanges
+
 lazy val root = (project in file("."))
   .enablePlugins(PlayJava)
   .settings(
@@ -141,3 +152,10 @@ val jacksonLibs = Seq(
 )
 
 val jacksonOverrides = jacksonLibs.map(_ % jacksonVersion)
+
+addCommandAlias("fmt", "scalafmtAll; scalafmtSbt")
+addCommandAlias("fmtCheck", "scalafmtCheckAll; scalafmtSbtCheck")
+
+Test / parallelExecution := true
+
+ThisBuild / outputStrategy := Some(StdoutOutput)
