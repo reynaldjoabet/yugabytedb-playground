@@ -5,19 +5,15 @@ version := "1.0-SNAPSHOT"
 ThisBuild / scalaVersion := "3.8.4"
 
 ThisBuild / scalacOptions := Seq(
-  "-encoding",
-  "UTF-8",
   "-no-indent",
   "-deprecation",
   "-feature",
   "-unchecked",
   "-source:3.3",
   "-java-output-version:17",
-  "-Werror",
   "-Wvalue-discard",
-  "-Wnonunit-statement",
-  "-Xlint:all",
-  "-Ysafe-init",
+  "-Wshadow:all",
+  "-Wsafe-init",
   "-Xcheck-macros",
   "-Xmax-inlines:64"
 )

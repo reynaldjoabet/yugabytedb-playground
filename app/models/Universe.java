@@ -19,6 +19,7 @@ import jakarta.persistence.UniqueConstraint;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -57,14 +58,23 @@ public class Universe extends Model {
   public static final String KEY_CERT_HOT_RELOADABLE = "cert_hot_reloadable";
 
   public static Universe getOrBadRequest(UUID universeUUID) {
-    Universe universe = getOrBadRequest(universeUUID);
+    Universe universe = find.byId(universeUUID);
+    if (universe == null) {
+      throw new PlatformServiceException(
+          BAD_REQUEST, String.format("Cannot find universe %s", universeUUID));
+    }
     MDC.put("universe-id", universeUUID.toString());
     MDC.put("cluster-id", universeUUID.toString());
-    if (true) {
+    return universe;
+  }
+
+  public static Universe getOrBadRequest(UUID universeUUID, Customer customer) {
+    Universe universe = getOrBadRequest(universeUUID);
+    if (!Objects.equals(universe.getCustomerId(), customer.getId())) {
       throw new PlatformServiceException(
           BAD_REQUEST,
           String.format(
-              "Universe %s doesn't belong to Customer", universeUUID));
+              "Universe %s doesn't belong to Customer %s", universeUUID, customer.getUuid()));
     }
     return universe;
   }
@@ -191,6 +201,11 @@ public class Universe extends Model {
 
   public static Set<UUID> getAllUUIDs() {
     return ImmutableSet.copyOf(find.query().where().findIds());
+  }
+
+  public static Set<UUID> getAllUUIDs(Customer customer) {
+    return ImmutableSet.copyOf(
+        find.query().where().eq("customerId", customer.getId()).findIds());
   }
 
 

@@ -58,6 +58,20 @@ public class Principal extends Model {
 
 
 
+  /**
+   * The customer this principal belongs to, resolved through whichever of the user or group backs
+   * it. Derived, not a column.
+   */
+  @JsonIgnore
+  public UUID getCustomerUUID() {
+    if (PrincipalType.USER.equals(type)) {
+      Users user = Users.get(userUUID);
+      return user == null ? null : user.getCustomerUUID();
+    }
+    GroupMappingInfo groupInfo = GroupMappingInfo.get(groupUUID);
+    return groupInfo == null ? null : groupInfo.getCustomerUUID();
+  }
+
   public static Principal get(UUID principalUUID) {
     Principal principal = find.byId(principalUUID);
     return principal;

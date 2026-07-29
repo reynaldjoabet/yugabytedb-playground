@@ -126,4 +126,17 @@ public class Region extends Model {
   @ApiModelProperty
   private RegionDetails details = new RegionDetails();
 
+  /**
+   * The cloud of the owning provider. Falls back to the transient {@code providerCode} for regions
+   * that are not attached to a persisted provider yet, as happens while bootstrapping.
+   */
+  @JsonIgnore
+  public CloudType getProviderCloudCode() {
+    if (provider != null) {
+      return provider.getCloudCode();
+    } else if (providerCode != null) {
+      return CloudType.valueOf(providerCode);
+    }
+    return CloudType.other;
+  }
 }

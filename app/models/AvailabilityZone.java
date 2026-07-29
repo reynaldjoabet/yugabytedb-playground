@@ -2,6 +2,7 @@ package models;
 import static io.swagger.annotations.ApiModelProperty.AccessMode.READ_ONLY;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.ebean.Model;
 import io.ebean.annotation.DbJson;
@@ -88,6 +89,29 @@ public class AvailabilityZone extends Model {
   
 
   
+
+  /** The zone's details, created on first use so callers can populate cloud info into it. */
+  @JsonIgnore
+  public AvailabilityZoneDetails getAvailabilityZoneDetails() {
+    if (details == null) {
+      details = new AvailabilityZoneDetails();
+    }
+    return details;
+  }
+
+  /**
+   * The cloud of the owning provider, reached through the region. Falls back to the transient
+   * {@code providerCode} for zones that are not attached to a persisted region yet.
+   */
+  @JsonIgnore
+  public CloudType getProviderCloudCode() {
+    if (region != null) {
+      return region.getProviderCloudCode();
+    } else if (providerCode != null) {
+      return CloudType.valueOf(providerCode);
+    }
+    return CloudType.other;
+  }
 
   public static AvailabilityZone getByCode(Provider provider, String code, boolean b) {
     return getByCode(provider, code, true);

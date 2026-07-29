@@ -121,4 +121,12 @@ public class Provider extends Model {
   // Custom keypair name to use when spinning up YB nodes.
   // Default: created and managed by YB.
 
+  /** The {@link CloudType} this provider's {@code code} names. Derived, not a column. */
+  @JsonIgnore
+  public CloudType getCloudCode() {
+    if (code == null) {
+      return CloudType.unknown;
+    }
+    return CloudType.valueOf(code);
+  }
 }

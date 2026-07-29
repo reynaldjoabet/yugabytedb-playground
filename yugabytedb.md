@@ -112,3 +112,27 @@ public class OidcJwtValidation {
 ```
 
 ![alt text](image.png)
+
+
+## YugabyteDB (the core database)
+The actual distributed SQL database — the thing that stores and serves your data. It's made of two server processes:
+- YB-Master — cluster metadata, tablet/shard placement, load balancing, DDL coordination (not on the data hot path).
+- YB-TServer — stores and serves the actual data (tablets), handles reads/writes, hosts the YSQL (Postgres-compatible) and YCQL (Cassandra-compatible) APIs.
+
+
+## yugabyted — the built-in, single-node-friendly launcher
+A command-line daemon (yugabyted start …) that wraps yb-master + yb-tserver into one easy-to-run process. It's the "get started in one command" experience: it bootstraps a node, auto-configures flags, joins a cluster, and exposes health/status. 
+
+yugabyted runs on every node, not just one
+You form a cluster by running yugabyted start on each node and joining them:
+
+```sh
+# node 1 (first node — becomes the seed)
+yugabyted start --advertise_address=10.0.0.1
+
+# node 2
+yugabyted start --advertise_address=10.0.0.2 --join=10.0.0.1
+
+# node 3
+yugabyted start --advertise_address=10.0.0.3 --join=10.0.0.1
+```

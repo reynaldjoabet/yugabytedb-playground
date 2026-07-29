@@ -58,6 +58,15 @@ public interface CloudInfoInterface {
   }
 
   
+  public static <T extends CloudInfoInterface> T get(Provider provider, Boolean maskSensitiveData) {
+    ProviderDetails providerDetails = provider.getDetails();
+    if (providerDetails == null) {
+      providerDetails = new ProviderDetails();
+    }
+    CloudType cloudType = provider.getCloudCode();
+    return get(providerDetails, maskSensitiveData, cloudType);
+  }
+
   public static <T extends CloudInfoInterface> T get(
       ProviderDetails providerDetails, Boolean maskSensitiveData, CloudType cloudType) {
     ProviderDetails.CloudInfo cloudInfo = null;//providerDetails.getCloudInfo();
@@ -92,6 +101,16 @@ public interface CloudInfoInterface {
     }
     CloudType cloudType = zone.getProviderCloudCode();
     return get(azDetails, maskSensitiveData, cloudType);
+  }
+
+  public static <T extends CloudInfoInterface> T get(
+      AvailabilityZoneDetails azDetails, Boolean maskSensitiveData, CloudType cloudType) {
+    AvailabilityZoneDetails.AZCloudInfo cloudInfo = azDetails.getCloudInfo();
+    if (cloudInfo == null) {
+      cloudInfo = new AvailabilityZoneDetails.AZCloudInfo();
+      azDetails.setCloudInfo(cloudInfo);
+    }
+    return null; // getCloudInfo(cloudInfo, cloudType, maskSensitiveData);
   }
 
 

@@ -73,6 +73,15 @@ public class FileData extends Model {
     return find.query().findCount();
   }
 
+  /** The stored content of a file, decoded from the base64 form it is persisted in. */
+  public static byte[] getDecodedData(String file) {
+    FileData fileData = getFromFile(file);
+    if (fileData == null) {
+      throw new PlatformServiceException(BAD_REQUEST, "File not found: " + file);
+    }
+    return Base64.getDecoder().decode(fileData.getFileContent());
+  }
+
   public static Set<FileData> getAllNames() {
     Set<FileData> fileData = find.query().select("file").findSet();
     if (CollectionUtils.isNotEmpty(fileData)) {

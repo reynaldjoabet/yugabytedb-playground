@@ -152,6 +152,17 @@ public class Release extends Model {
     return find.query().where().eq("version", version).eq("release_tag", tag).findOne();
   }
 
+  /**
+   * An absent tag is stored as {@link #NULL_CONSTANT} rather than null, so that the (version,
+   * release_tag) uniqueness constraint also covers untagged releases.
+   */
+  private static String encodeReleaseTag(String tag) {
+    if (tag == null || tag.isEmpty()) {
+      return NULL_CONSTANT;
+    }
+    return tag;
+  }
+
 
   public String getReleaseTag() {
     return "decodeReleaseTag(this.releaseTag)";
