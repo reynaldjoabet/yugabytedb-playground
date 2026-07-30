@@ -13,7 +13,6 @@ ThisBuild / scalacOptions := Seq(
   "-java-output-version:17",
   "-Wvalue-discard",
   "-Wshadow:all",
-  "-Wsafe-init",
   "-Xcheck-macros",
   "-Xmax-inlines:64"
 )
