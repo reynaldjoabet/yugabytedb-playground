@@ -23,6 +23,10 @@ Global / onChangedBuildSource := ReloadOnSourceChanges
 // newer databind ("requires Jackson Databind >= x and < x+1"). Pin the whole family to one version.
 val jacksonVersion = "2.19.4"
 
+// Jackson 3 moved to the tools.jackson.* org. It coexists with the Jackson 2 family above, which
+// stays pinned because Play and Pekko are still Jackson 2 libraries.
+val jackson3Version = "3.2.2"
+
 val jacksonLibs = Seq(
   "com.fasterxml.jackson.core"       % "jackson-core",
   "com.fasterxml.jackson.core"       % "jackson-annotations",
@@ -38,10 +42,18 @@ val jacksonLibs = Seq(
 
 val jacksonOverrides = jacksonLibs.map(_ % jacksonVersion)
 
+// play-ebean 8.5.0 asks for play-jdbc-evolutions 3.0.9, and nothing else in the graph requests
+// evolutions at all, so there is no conflict to evict it and it resolves alone at 3.0.9 -- a build
+// from before Play moved to jakarta.inject. Guice 7 dropped the javax.inject bridge, so that module
+// dies at load time with NoClassDefFoundError: javax/inject/Provider. Pin it to the Play in use.
+val playOverrides = Seq(
+  "org.playframework" %% "play-jdbc-evolutions" % play.core.PlayVersion.current
+)
+
 lazy val root = (project in file("."))
   .enablePlugins(PlayJava)
   .settings(
-    dependencyOverrides ++= jacksonOverrides,
+    dependencyOverrides ++= jacksonOverrides ++ playOverrides,
     libraryDependencies ++= Seq(
       javaForms,
       jodaForms,
@@ -105,47 +117,49 @@ lazy val root = (project in file("."))
       //   "org.pac4j" %% "play-pac4j" % "11.0.0-PLAY2.8",
       //   "org.pac4j" % "pac4j-oauth" % "5.7.7" exclude ("commons-io", "commons-io"),
       //   "org.pac4j" % "pac4j-oidc" % "5.7.7" exclude ("commons-io", "commons-io"),
-      "com.nimbusds"                     % "nimbus-jose-jwt"              % "10.3",
-      "com.nimbusds"                     % "oauth2-oidc-sdk"              % "11.25",
-      "org.playframework"               %% "play-json"                    % "3.0.6",
-      "commons-validator"                % "commons-validator"            % "1.9.0",
-      "org.apache.velocity"              % "velocity-engine-core"         % "2.4.1",
-      "com.fasterxml.woodstox"           % "woodstox-core"                % "7.1.1",
-      "com.jayway.jsonpath"              % "json-path"                    % "2.9.0",
-      "commons-io"                       % "commons-io"                   % "2.19.0",
-      "commons-codec"                    % "commons-codec"                % "1.18.0",
-      "com.google.apis"                  % "google-api-services-compute"  % "v1-rev20250415-2.0.0",
-      "com.google.apis"                  % "google-api-services-iam"      % "v2-rev20250502-2.0.0",
-      "com.google.cloud"                 % "google-cloud-compute"         % "1.73.0",
-      "com.google.cloud"                 % "google-cloud-storage"         % "2.52.3",
-      "com.google.cloud"                 % "google-cloud-kms"             % "2.66.0",
-      "com.google.cloud"                 % "google-cloud-resourcemanager" % "1.65.0",
-      "com.google.cloud"                 % "google-cloud-logging"         % "3.22.4",
-      "com.google.oauth-client"          % "google-oauth-client"          % "1.39.0",
-      "org.projectlombok"                % "lombok"                       % "1.18.38",
-      "com.squareup.okhttp3"             % "okhttp"                       % "4.12.0",
-      "com.fasterxml.jackson.dataformat" % "jackson-dataformat-xml"       % jacksonVersion,
-      "com.google.protobuf"              % "protobuf-java-util"           % "4.31.1",
-      "io.kamon"                        %% "kamon-bundle"                 % "2.7.7",
-      "io.kamon"                        %% "kamon-prometheus"             % "2.7.7",
-      "org.unix4j"                       % "unix4j-command"               % "0.6",
-      "com.bettercloud"                  % "vault-java-driver"            % "5.1.0",
-      "org.apache.directory.api"         % "api-all"                      % "2.1.7",
-      "io.fabric8"                       % "crd-generator-apt"            % "7.3.1",
-      "io.fabric8"                       % "kubernetes-client"            % "7.3.1",
-      "io.fabric8"                       % "kubernetes-client-api"        % "7.3.1",
-      "io.fabric8"                       % "kubernetes-model"             % "6.13.5",
-      "org.modelmapper"                  % "modelmapper"                  % "3.2.3",
-      ("com.datadoghq"                   % "datadog-api-client"           % "2.35.0").classifier("shaded-jar"),
-      "javax.xml.bind"                   % "jaxb-api"                     % "2.3.1",
-      "io.jsonwebtoken"                  % "jjwt-api"                     % "0.12.6",
-      "io.jsonwebtoken"                  % "jjwt-impl"                    % "0.12.6",
-      "io.jsonwebtoken"                  % "jjwt-jackson"                 % "0.12.6",
-      "io.swagger"                       % "swagger-annotations"          % "1.6.16", // needed for annotations in prod code
-      "de.dentrassi.crypto"              % "pem-keystore"                 % "3.0.0",
-      "org.playframework"               %% "play-ebean"                   % "8.5.0",
-      "jakarta.validation"               % "jakarta.validation-api"       % "3.1.1",
-      "qa.hedgehog"                     %% "hedgehog-sbt"                 % "0.13.0" % Test,
+      "com.nimbusds"             % "nimbus-jose-jwt"              % "10.3",
+      "com.nimbusds"             % "oauth2-oidc-sdk"              % "11.25",
+      "org.playframework"       %% "play-json"                    % "3.0.6",
+      "commons-validator"        % "commons-validator"            % "1.9.0",
+      "org.apache.velocity"      % "velocity-engine-core"         % "2.4.1",
+      "com.fasterxml.woodstox"   % "woodstox-core"                % "7.1.1",
+      "com.jayway.jsonpath"      % "json-path"                    % "2.9.0",
+      "commons-io"               % "commons-io"                   % "2.19.0",
+      "commons-codec"            % "commons-codec"                % "1.18.0",
+      "com.google.apis"          % "google-api-services-compute"  % "v1-rev20250415-2.0.0",
+      "com.google.apis"          % "google-api-services-iam"      % "v2-rev20250502-2.0.0",
+      "com.google.cloud"         % "google-cloud-compute"         % "1.73.0",
+      "com.google.cloud"         % "google-cloud-storage"         % "2.52.3",
+      "com.google.cloud"         % "google-cloud-kms"             % "2.66.0",
+      "com.google.cloud"         % "google-cloud-resourcemanager" % "1.65.0",
+      "com.google.cloud"         % "google-cloud-logging"         % "3.22.4",
+      "com.google.oauth-client"  % "google-oauth-client"          % "1.39.0",
+      "org.projectlombok"        % "lombok"                       % "1.18.38",
+      "com.squareup.okhttp3"     % "okhttp"                       % "4.12.0",
+      "tools.jackson.core"       % "jackson-core"                 % jackson3Version,
+      "tools.jackson.core"       % "jackson-databind"             % jackson3Version,
+      "tools.jackson.dataformat" % "jackson-dataformat-xml"       % jackson3Version,
+      "com.google.protobuf"      % "protobuf-java-util"           % "4.31.1",
+      "io.kamon"                %% "kamon-bundle"                 % "2.7.7",
+      "io.kamon"                %% "kamon-prometheus"             % "2.7.7",
+      "org.unix4j"               % "unix4j-command"               % "0.6",
+      "com.bettercloud"          % "vault-java-driver"            % "5.1.0",
+      "org.apache.directory.api" % "api-all"                      % "2.1.7",
+      "io.fabric8"               % "crd-generator-apt"            % "7.3.1",
+      "io.fabric8"               % "kubernetes-client"            % "7.3.1",
+      "io.fabric8"               % "kubernetes-client-api"        % "7.3.1",
+      "io.fabric8"               % "kubernetes-model"             % "6.13.5",
+      "org.modelmapper"          % "modelmapper"                  % "3.2.3",
+      ("com.datadoghq"           % "datadog-api-client"           % "2.35.0").classifier("shaded-jar"),
+      "javax.xml.bind"           % "jaxb-api"                     % "2.3.1",
+      "io.jsonwebtoken"          % "jjwt-api"                     % "0.12.6",
+      "io.jsonwebtoken"          % "jjwt-impl"                    % "0.12.6",
+      "io.jsonwebtoken"          % "jjwt-jackson"                 % "0.12.6",
+      "io.swagger"               % "swagger-annotations"          % "1.6.16", // needed for annotations in prod code
+      "de.dentrassi.crypto"      % "pem-keystore"                 % "3.0.0",
+      "org.playframework"       %% "play-ebean"                   % "9.0.0-M2",
+      "jakarta.validation"       % "jakarta.validation-api"       % "3.1.1",
+      "qa.hedgehog"             %% "hedgehog-sbt"                 % "0.13.0" % Test,
       // https://hedgehog.qa/
       "qa.hedgehog" %% "hedgehog-core" % "0.13.0" % Test
     )

@@ -5,8 +5,8 @@ import models.Customer;
 import models.Provider;
 import models.Universe;
 import java.util.*;
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 
 @Singleton
 public class RuntimeConfigChangeNotifier {
