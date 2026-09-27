@@ -1,21 +1,32 @@
 name := """yugabytedb-playground"""
 
-version := "1.0-SNAPSHOT"
-
 ThisBuild / scalaVersion := "3.9.0"
+ThisBuild / version      := "0.1.0-SNAPSHOT"
+
+// Scala 3.3.x cannot be a cross target while Play 3.1.x is in the graph: its artifacts are built
+// with Scala 3.8.3, and TASTy is forward-incompatible, so a 3.3 compiler cannot read them.
+ThisBuild / crossScalaVersions := Seq("3.9.0")
 
 ThisBuild / scalacOptions := Seq(
+  "-encoding",
+  "UTF-8",
   "-no-indent",
   "-deprecation",
   "-feature",
   "-unchecked",
-  "-source:3.3",
-  "-java-output-version:17",
+  // "-Werror",
+  // "-Wunused:all",
   "-Wvalue-discard",
-  "-Wshadow:all",
+  "-Wnonunit-statement",
+  "-language:strictEquality",
   "-Xcheck-macros",
   "-Xmax-inlines:64"
 )
+
+// JDK 23 stopped running annotation processors found on the classpath unless asked, so Lombok
+// silently no-ops and every generated getter and @Slf4j `log` disappears. The CI matrix is Java
+// 21/25, and -proc:full exists from 21 on, so this needs no version guard.
+ThisBuild / javacOptions ++= Seq("-proc:full")
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 

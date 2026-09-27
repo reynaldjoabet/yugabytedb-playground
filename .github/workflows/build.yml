@@ -22,9 +22,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [17,21,25]
+        java: [21,25]
         distribution: [temurin, corretto]
-        scala: ['3.3.8', '3.9.0']
+        scala: ['3.9.0']
         os: [ubuntu-latest]
 
     steps:
