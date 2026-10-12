@@ -1,6 +1,6 @@
 name := """yugabytedb-playground"""
 
-ThisBuild / scalaVersion := "3.9.0"
+ThisBuild / scalaVersion := "3.10.0"
 ThisBuild / version      := "0.1.0-SNAPSHOT"
 
 // Scala 3.3.x cannot be a cross target while Play 3.1.x is in the graph: its artifacts are built
@@ -74,7 +74,7 @@ lazy val root = (project in file("."))
       javaCore,
       javaClusterSharding,
       ehcache,
-      "org.postgresql"                    % "postgresql"               % "42.7.13",
+      "org.postgresql"                    % "postgresql"               % "42.7.14",
       "net.logstash.logback"              % "logstash-logback-encoder" % "9.0",
       "ch.qos.logback"                    % "logback-classic"          % "1.6.5",
       "org.codehaus.janino"               % "janino"                   % "3.1.12",
@@ -84,7 +84,7 @@ lazy val root = (project in file("."))
       "org.apache.commons"                % "commons-csv"              % "1.14.1",
       "org.apache.httpcomponents.core5"   % "httpcore5"                % "5.4.4",
       "org.apache.httpcomponents.core5"   % "httpcore5-h2"             % "5.4.4",
-      "org.apache.httpcomponents.client5" % "httpclient5"              % "5.6.4",
+      "org.apache.httpcomponents.client5" % "httpclient5"              % "5.6.5",
       "org.apache.mina"                   % "mina-core"                % "2.2.9",
       "org.flywaydb"                     %% "flyway-play"              % "9.1.0",
       // https://github.com/YugaByte/cassandra-java-driver/releases
@@ -111,10 +111,10 @@ lazy val root = (project in file("."))
       // Make sure all itests and existing functionality works as expected.
       // Used below azure versions from azure-sdk-bom:1.2.6
       "com.azure"                 % "azure-core"                                % "1.60.0",
-      "com.azure"                 % "azure-identity"                            % "1.18.6",
-      "com.azure"                 % "azure-security-keyvault-keys"              % "4.11.2",
-      "com.azure"                 % "azure-storage-blob"                        % "12.35.1",
-      "com.azure"                 % "azure-storage-blob-batch"                  % "12.31.2",
+      "com.azure"                 % "azure-identity"                            % "1.18.7",
+      "com.azure"                 % "azure-security-keyvault-keys"              % "4.11.3",
+      "com.azure"                 % "azure-storage-blob"                        % "12.36.0",
+      "com.azure"                 % "azure-storage-blob-batch"                  % "12.32.0",
       "com.azure.resourcemanager" % "azure-resourcemanager"                     % "2.64.0",
       "com.azure.resourcemanager" % "azure-resourcemanager-marketplaceordering" % "1.0.0",
       "jakarta.mail"              % "jakarta.mail-api"                          % "2.1.5",
@@ -136,7 +136,7 @@ lazy val root = (project in file("."))
       "com.fasterxml.woodstox"   % "woodstox-core"                % "7.3.0",
       "com.jayway.jsonpath"      % "json-path"                    % "3.0.0",
       "commons-io"               % "commons-io"                   % "2.22.0",
-      "commons-codec"            % "commons-codec"                % "1.22.1",
+      "commons-codec"            % "commons-codec"                % "1.23.0",
       "com.google.apis"          % "google-api-services-compute"  % "v1-rev20260908-2.0.0",
       "com.google.apis"          % "google-api-services-iam"      % "v2-rev20250502-2.0.0",
       "com.google.cloud"         % "google-cloud-compute"         % "1.109.0",
@@ -159,7 +159,7 @@ lazy val root = (project in file("."))
       "io.fabric8"               % "kubernetes-client"            % "8.0.0",
       "io.fabric8"               % "kubernetes-client-api"        % "8.0.0",
       "io.fabric8"               % "kubernetes-model"             % "6.14.0",
-      "org.modelmapper"          % "modelmapper"                  % "3.2.6",
+      "org.modelmapper"          % "modelmapper"                  % "3.2.7",
       ("com.datadoghq"           % "datadog-api-client"           % "2.61.0").classifier("shaded-jar"),
       "javax.xml.bind"           % "jaxb-api"                     % "2.3.1",
       "io.jsonwebtoken"          % "jjwt-api"                     % "0.13.0",
