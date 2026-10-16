@@ -1,6 +1,6 @@
 name := """yugabytedb-playground"""
 
-ThisBuild / scalaVersion := "3.10.0"
+ThisBuild / scalaVersion := "3.9.0"
 ThisBuild / version      := "0.1.0-SNAPSHOT"
 
 // Scala 3.3.x cannot be a cross target while Play 3.1.x is in the graph: its artifacts are built
