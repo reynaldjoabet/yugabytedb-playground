@@ -85,7 +85,7 @@ lazy val root = (project in file("."))
       "org.apache.httpcomponents.core5"   % "httpcore5"                % "5.4.4",
       "org.apache.httpcomponents.core5"   % "httpcore5-h2"             % "5.4.4",
       "org.apache.httpcomponents.client5" % "httpclient5"              % "5.6.5",
-      "org.apache.mina"                   % "mina-core"                % "2.2.9",
+      "org.apache.mina"                   % "mina-core"                % "2.2.10",
       "org.flywaydb"                     %% "flyway-play"              % "9.1.0",
       // https://github.com/YugaByte/cassandra-java-driver/releases
       "com.yugabyte"                 % "cassandra-driver-core"               % "3.10.3-yb-3",
