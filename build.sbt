@@ -76,7 +76,7 @@ lazy val root = (project in file("."))
       ehcache,
       "org.postgresql"                    % "postgresql"               % "42.7.14",
       "net.logstash.logback"              % "logstash-logback-encoder" % "9.0",
-      "ch.qos.logback"                    % "logback-classic"          % "1.6.5",
+      "ch.qos.logback"                    % "logback-classic"          % "1.6.6",
       "org.codehaus.janino"               % "janino"                   % "3.1.12",
       "org.apache.commons"                % "commons-lang3"            % "3.21.0",
       "org.apache.commons"                % "commons-collections4"     % "4.6.0",
@@ -110,7 +110,7 @@ lazy val root = (project in file("."))
       // Be careful when changing azure library versions.
       // Make sure all itests and existing functionality works as expected.
       // Used below azure versions from azure-sdk-bom:1.2.6
-      "com.azure"                 % "azure-core"                                % "1.60.0",
+      "com.azure"                 % "azure-core"                                % "1.61.0",
       "com.azure"                 % "azure-identity"                            % "1.18.7",
       "com.azure"                 % "azure-security-keyvault-keys"              % "4.11.3",
       "com.azure"                 % "azure-storage-blob"                        % "12.36.0",
@@ -139,11 +139,11 @@ lazy val root = (project in file("."))
       "commons-codec"            % "commons-codec"                % "1.23.0",
       "com.google.apis"          % "google-api-services-compute"  % "v1-rev20260908-2.0.0",
       "com.google.apis"          % "google-api-services-iam"      % "v2-rev20250502-2.0.0",
-      "com.google.cloud"         % "google-cloud-compute"         % "1.109.0",
-      "com.google.cloud"         % "google-cloud-storage"         % "2.75.0",
-      "com.google.cloud"         % "google-cloud-kms"             % "2.102.0",
-      "com.google.cloud"         % "google-cloud-resourcemanager" % "1.101.0",
-      "com.google.cloud"         % "google-cloud-logging"         % "3.40.0",
+      "com.google.cloud"         % "google-cloud-compute"         % "1.110.0",
+      "com.google.cloud"         % "google-cloud-storage"         % "2.76.0",
+      "com.google.cloud"         % "google-cloud-kms"             % "2.103.0",
+      "com.google.cloud"         % "google-cloud-resourcemanager" % "1.102.0",
+      "com.google.cloud"         % "google-cloud-logging"         % "3.41.0",
       "com.google.oauth-client"  % "google-oauth-client"          % "1.39.0",
       "org.projectlombok"        % "lombok"                       % "1.18.48",
       "com.squareup.okhttp3"     % "okhttp"                       % "5.5.1",
@@ -169,9 +169,9 @@ lazy val root = (project in file("."))
       "de.dentrassi.crypto"      % "pem-keystore"                 % "3.0.0",
       "org.playframework"       %% "play-ebean"                   % "9.0.0-M2",
       "jakarta.validation"       % "jakarta.validation-api"       % "3.1.1",
-      "qa.hedgehog"             %% "hedgehog-sbt"                 % "0.15.0" % Test,
+      "qa.hedgehog"             %% "hedgehog-sbt"                 % "0.15.1" % Test,
       // https://hedgehog.qa/
-      "qa.hedgehog" %% "hedgehog-core" % "0.15.0" % Test
+      "qa.hedgehog" %% "hedgehog-core" % "0.15.1" % Test
     )
   )
 
